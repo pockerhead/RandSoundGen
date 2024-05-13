@@ -21,7 +21,10 @@ class ViewController: UIViewController {
 		handler: { _ in
 			Task {
 				let n = try await self.gen.getSomeRandomNumbers()
-				let nNormalized = n.map({ abs($0 * 1_000_000_000).truncatingRemainder(dividingBy: 1_00) })
+				let nNormalized = n.map({
+					abs($0 * 1_000_000_000).truncatingRemainder(dividingBy: 1_00)
+				})
+				print(n)
 				print(nNormalized)
 			}
 		})
@@ -32,7 +35,7 @@ class ViewController: UIViewController {
 		view.addSubview(button)
 		cancellable = gen.meterPublisher.sink {[self] level in
 			let normalized = (level + 80) / 90
-			meterView.setProgress(normalized, animated: false)
+			meterView.setProgress(Float(normalized), animated: false)
 		}
 		view.addSubview(meterView)
 	}
@@ -51,17 +54,17 @@ final class RandSoundGen: NSObject, AVAudioRecorderDelegate {
 	var recordingSession: AVAudioSession?
 	var audioRecorder: AVAudioRecorder?
 	
-	var meterPublisher: PassthroughSubject<Float, Never> = .init()
+	var meterPublisher: PassthroughSubject<Double, Never> = .init()
 	
-	let timer = Timer.publish(every: 0.5, on: .main, in: .common)
+	let timer = Timer.publish(every: 0.005, on: .main, in: .common)
 	var cancellable: AnyCancellable?
-	@MainActor var numbers: [Float] = []
+	@MainActor var numbers: [Double] = []
 	
 	override init() {
 		super.init()
 	}
 	
-	func getSomeRandomNumbers() async throws -> [Float] {
+	func getSomeRandomNumbers() async throws -> [Double] {
 		recordingSession = AVAudioSession.sharedInstance()
 		try recordingSession?.setCategory(.playAndRecord, mode: .default)
 		try recordingSession?.setActive(true)
@@ -82,10 +85,10 @@ final class RandSoundGen: NSObject, AVAudioRecorderDelegate {
 				let peakLevel = audioRecorder?.peakPower(forChannel: 0)
 			else { return }
 //			print(averageLevel, peakLevel)
-			self.meterPublisher.send(averageLevel)
+			self.meterPublisher.send(Double(averageLevel))
 			Task {
 				await MainActor.run {
-					self.numbers.append(averageLevel)
+					self.numbers.append(Double(averageLevel))
 				}
 			}
 		})
@@ -108,7 +111,7 @@ final class RandSoundGen: NSObject, AVAudioRecorderDelegate {
 		cancellable = nil
 	}
 	
-	func getFile() async throws -> [Float] {
+	func getFile() async throws -> [Double] {
 		let audioFilename = getDocumentsDirectory().appendingPathComponent("recording.m4a")
 
 		let settings = [
@@ -127,7 +130,7 @@ final class RandSoundGen: NSObject, AVAudioRecorderDelegate {
 			audioRecorder?.isMeteringEnabled = true
 			audioRecorder?.record()
 			assignTimer()
-			try await Task.sleep(for: .seconds(3))
+			try await Task.sleep(for: .seconds(0.026))
 			finishRecording(success: true)
 			return await numbers
 		} catch {
